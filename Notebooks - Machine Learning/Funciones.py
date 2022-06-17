@@ -9,7 +9,7 @@ import seaborn as sns
 
 # Valores faltantes
 # Función para observar variables con datos nulos y su porcentaje
-def nan_values(data: DataFrame, variables: list, variable_type) -> str:
+def nan_values(data: DataFrame, variables: list, variable_type:str):
     """
     Function to observe variables with nan values and their percentages
 
@@ -31,7 +31,7 @@ def nan_values(data: DataFrame, variables: list, variable_type) -> str:
 def downcast_dtypes(dataframe: DataFrame) -> DataFrame:
 
     """
-    Function for downcast any type variable
+    Function to downcast any type variable
 
     Args:
         dataframe: DataFrame
@@ -54,6 +54,27 @@ def downcast_dtypes(dataframe: DataFrame) -> DataFrame:
     dataframe.info()
 
     return dataframe
+
+# Variables estratificadas por clases
+# Función para obtener la estratificación de clases/target
+def get_estratified_classes(data:DataFrame, target:str):
+
+    """
+    Function to get estratified by classes
+
+    Args:
+        data: DataFrame
+        target: str
+    Returns:
+        tmp: dict
+    """
+
+    tmp = (data.groupby(target).size().sort_values(ascending=False))/len(data)
+    tmp = dict(tmp)
+    
+    print('Clases estratificadas')
+    for key, value in tmp.items():
+        print(f'{key}: {value*100:0.2f}%')
 
 
 # Diagnóstico de variables
@@ -96,7 +117,7 @@ def categoricals_plot(dataframe, variables: list, ylabel: str):
         fig = temp_dataframe.sort_values(ascending=False).plot.bar(color='lavender')
         fig.set_xlabel(var)
 
-        # Anadir una línea horizontal a 5% para resaltar categorías poco comunes
+        # Añadir una línea horizontal a 5% para resaltar categorías poco comunes
         fig.axhline(y=0.05, color='#e51a4c')
         fig.set_ylabel(ylabel)
 
