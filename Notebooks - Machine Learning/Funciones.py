@@ -9,7 +9,7 @@ import seaborn as sns
 
 # Valores faltantes
 # Función para observar variables con datos nulos y su porcentaje
-def nan_values(data: DataFrame, variables: list, variable_type:str):
+def nan_values(data:DataFrame, variables:list, variable_type:str):
     """
     Function to observe variables with nan values and their percentages
 
@@ -28,7 +28,8 @@ def nan_values(data: DataFrame, variables: list, variable_type:str):
 
 
 # Downcasting
-def downcast_dtypes(dataframe: DataFrame) -> DataFrame:
+# Función para reducir el peso en memoria de un DataFrame
+def downcast_dtypes(dataframe:DataFrame) -> DataFrame:
 
     """
     Function to downcast any type variable
@@ -57,7 +58,7 @@ def downcast_dtypes(dataframe: DataFrame) -> DataFrame:
 
 # Variables estratificadas por clases
 # Función para obtener la estratificación de clases/target
-def get_estratified_classes(data:DataFrame, target:str):
+def get_estratified_classes(data:DataFrame, target:str) -> any:
 
     """
     Function to get estratified by classes
@@ -66,51 +67,107 @@ def get_estratified_classes(data:DataFrame, target:str):
         data: DataFrame
         target: str
     Returns:
-        tmp: dict
+        tmp: print
     """
 
     tmp = (data.groupby(target).size().sort_values(ascending=False))/len(data)
     tmp = dict(tmp)
     
-    print('Clases estratificadas')
+    print('\t\tDistribución de clases')
     for key, value in tmp.items():
         print(f'{key}: {value*100:0.2f}%')
 
 
+# Asimetría entre predictores
+# Función para obtener la asimetría de los predictores
+def get_skew(data:DataFrame) -> any:
+
+    """
+    Function to get skew by classes
+
+    Args:
+        data: DataFrame
+    Returns:
+        print
+    """
+
+    tmp = data.skew().sort_values(ascending=False)
+    tmp = dict(tmp)
+    
+    print('\t\tAsimetría entre predictores')
+    for key, value in tmp.items():
+        print(f'{key}: {value:0.2f}')
+
+
+# Función para detectar outliers
+def get_outliers(data:DataFrame) -> list:
+
+    """
+    Returns a list of rows with outliers, 
+    we define the upper and lower limit to 1.5 std
+    Args:
+        data: DataFrame
+    Returns:
+        list: outliers
+    """
+
+    outliers = list()
+
+    # Std & Mean
+    data_std = data.std()
+    data_mean = data.mean()
+
+    # Cotas
+    anomaly_cut_off = data_std * 1.5
+    # Inferior
+    lower_limit = data_mean - anomaly_cut_off
+    # Superior
+    upper_limit = data_mean + anomaly_cut_off
+
+    # Generamos los outliers
+    for index, row in data.iterrows():     
+        outlier = row
+        if (outlier.iloc[0] > upper_limit[0]) or (outlier.iloc[0] < lower_limit[0]):
+            outliers.append(index)
+
+    return outliers
+
+
 # Diagnóstico de variables
 # Función para observar el comportamiento de ciertas variables
-def diagnostic_plots(dataframe, variable):
+def diagnostic_plots(dataframe:DataFrame, variable:list):
 
-    plt.style.use('dark_background')
-    fig, axes = plt.subplots(1, 4, figsize=(18, 6))
-    fig.suptitle('Diagnostic Plots', fontsize=18)
+    dataframe = dataframe[variable]
+    for var in dataframe:
+        plt.style.use('dark_background')
+        fig, axes = plt.subplots(1, 4, figsize=(18, 6))
+        fig.suptitle('Diagnostic Plots', fontsize=18)
 
-    plt.subplot(1, 4, 1)
-    sns.histplot(dataframe[variable], bins=20, color='gold')
-    plt.grid(which='major')
+        plt.subplot(1, 4, 1)
+        sns.histplot(dataframe[var], bins=20, color='gold')
+        plt.grid(which='major')
 
-    plt.subplot(1, 4, 2)
-    stats.probplot(dataframe[variable], dist='norm', plot=plt)
-    plt.grid()
+        plt.subplot(1, 4, 2)
+        stats.probplot(dataframe[var], dist='norm', plot=plt)
+        plt.grid()
 
-    plt.subplot(1, 4, 3)
-    sns.kdeplot(dataframe[variable], shade=True, color='red')
-    plt.grid()
+        plt.subplot(1, 4, 3)
+        sns.kdeplot(dataframe[var], shade=True, color='red')
+        plt.grid()
 
-    plt.subplot(1, 4, 4)
-    sns.boxplot(y=dataframe[variable], color='floralwhite', linewidth=2)
+        plt.subplot(1, 4, 4)
+        sns.boxplot(y=dataframe[var], color='floralwhite', linewidth=2)
 
-    plt.xlabel(variable)
-    fig.tight_layout()
+        plt.xlabel(var)
+        fig.tight_layout()
 
 
 # Revisar la cardinalidad de variables categóricas
 # Función para graficar variables categóricas
-def categoricals_plot(dataframe, variables: list, ylabel: str):
+def categoricals_plot(dataframe:DataFrame, variables: list, ylabel: str):
 
-    plt.style.use('dark_background')
     for var in variables:
-
+        plt.style.use('dark_background')
         temp_dataframe = pd.Series(dataframe[var].value_counts() / len(dataframe))
 
         # Graficar con los porcentajes
@@ -121,5 +178,6 @@ def categoricals_plot(dataframe, variables: list, ylabel: str):
         fig.axhline(y=0.05, color='#e51a4c')
         fig.set_ylabel(ylabel)
 
+        plt.xticks(rotation=25)
         plt.grid()
         plt.show()
