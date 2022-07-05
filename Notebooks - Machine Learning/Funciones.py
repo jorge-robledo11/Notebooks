@@ -7,6 +7,36 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Downcasting
+# Función para reducir el peso en memoria de un DataFrame
+def downcast_dtypes(data:DataFrame) -> DataFrame:
+
+    """
+    Function to downcast any type variable
+
+    Args:
+        dataframe: DataFrame
+    Returns
+        DataFrame: Downcasted DataFrame
+    """
+
+    start = data.memory_usage(deep=True).sum() / 1024 ** 2
+    float_cols = [col for col in data if data[col].dtype == 'float64']
+    int_cols = [col for col in data if data[col].dtype in ['int64', 'int32']]
+    object_cols = [col for col in data if data[col].dtype in ['object', 'bool']]
+
+    data[float_cols] = data[float_cols].astype(np.float32)
+    data[int_cols] = data[int_cols].astype(np.int16)
+    data[object_cols] = data[object_cols].astype('category')
+
+    end = data.memory_usage(deep=True).sum() / 1024 ** 2
+    saved = (start - end) / start * 100
+    print(f'Memory Saved: {saved:0.2f}%', '\n')
+    data.info()
+
+    return data    
+
+
 # Valores faltantes
 # Función para observar variables con datos nulos y su porcentaje
 def nan_values(data:DataFrame, variables:list, variable_type:str):
@@ -24,37 +54,47 @@ def nan_values(data:DataFrame, variables:list, variable_type:str):
 
     for var in variables:
         if data[var].isnull().sum() > 0:
-            print(f'{var} {data[var].isnull().mean()*100:0.2f}%')
+            print(f'{var}: {data[var].isnull().mean()*100:0.2f}%')
 
 
-# Downcasting
-# Función para reducir el peso en memoria de un DataFrame
-def downcast_dtypes(dataframe:DataFrame) -> DataFrame:
-
+# Capturar variables
+# Función para capturar los tipos de variables
+def capture_variables(data:DataFrame) -> tuple:
+    
     """
-    Function to downcast any type variable
+    Function to capture the types of Dataframe variables
 
     Args:
         dataframe: DataFrame
     Returns
-        DataFrame: Downcasted DataFrame
+        variables: A tuple of lists
+    
+    The order to unpack variables:
+    1. numericals
+    2. categoricals
+    3. temporary
+    4. discretes
+    5. continous
     """
 
-    start = dataframe.memory_usage(deep=True).sum() / 1024 ** 2
-    float_cols = [col for col in dataframe if dataframe[col].dtype == 'float64']
-    int_cols = [col for col in dataframe if dataframe[col].dtype in ['int64', 'int32']]
-    object_cols = [col for col in dataframe if dataframe[col].dtype in ['object', 'bool']]
+    numericals = list(data.select_dtypes(include = [np.int16, np.float32]).columns)
+    categoricals = list(data.select_dtypes(include = ['category', 'bool']).columns)
+    temporary = list(data.select_dtypes(include = ['datetime', 'timedelta']).columns)
+    discretes = [col for col in data[numericals] if len(data[numericals][col].unique()) < 20]
+    continuous = [col for col in data[numericals] if col not in discretes]
 
-    dataframe[float_cols] = dataframe[float_cols].astype(np.float32)
-    dataframe[int_cols] = dataframe[int_cols].astype(np.int16)
-    dataframe[object_cols] = dataframe[object_cols].astype('category')
+    # Variables
+    print('\t\tTipos de variables')
+    print(f'Hay {len(continuous)} variables continuas')
+    print(f'Hay {len(discretes)} variables discretas')
+    print(f'Hay {len(temporary)} variables temporales')
+    print(f'Hay {len(categoricals)} variables categóricas')
 
-    end = dataframe.memory_usage(deep=True).sum() / 1024 ** 2
-    saved = (start - end) / start * 100
-    print(f'Memory Saved: {saved:0.2f}%', '\n')
-    dataframe.info()
+    variables = tuple((numericals, categoricals, temporary, discretes, continuous))
+    
+    # Retornamos una tupla de listas
+    return variables
 
-    return dataframe
 
 # Variables estratificadas por clases
 # Función para obtener la estratificación de clases/target
@@ -99,8 +139,42 @@ def get_skew(data:DataFrame) -> any:
         print(f'{key}: {value:0.2f}')
 
 
+# Diagnóstico de variables
+# Función para observar el comportamiento de ciertas variables
+def diagnostic_plots(data:DataFrame, variables:list):
+
+    data = data[variables]
+    for var in data:
+        plt.style.use('dark_background')
+        fig, axes = plt.subplots(1, 4, figsize=(18, 6))
+        fig.suptitle('Diagnostic Plots', fontsize=18)
+
+        plt.subplot(1, 4, 1)
+        sns.histplot(data[var], bins=20, color='gold')
+        plt.ylabel('Cantidades')
+        plt.xticks(rotation=25)
+        plt.grid(which='major')
+
+        plt.subplot(1, 4, 2)
+        stats.probplot(data[var], dist='norm', plot=plt)
+        plt.xticks(rotation=25)
+        plt.grid()
+
+        plt.subplot(1, 4, 3)
+        sns.kdeplot(data[var], shade=True, color='red')
+        plt.ylabel('Densidades')
+        plt.xticks(rotation=25)
+        plt.grid()
+
+        plt.subplot(1, 4, 4)
+        sns.boxplot(y=data[var], color='floralwhite', linewidth=2, width=0.5)
+
+        plt.xlabel(var)
+        fig.tight_layout()
+
+
 # Función para detectar outliers
-def get_outliers(data:DataFrame) -> list:
+def get_outliers(data:DataFrame, std:float) -> list:
 
     """
     Returns a list of rows with outliers, 
@@ -109,6 +183,7 @@ def get_outliers(data:DataFrame) -> list:
         data: DataFrame
     Returns:
         list: outliers
+    Note: At std you could use 1.5 or 3 as typical values
     """
 
     outliers = list()
@@ -118,7 +193,7 @@ def get_outliers(data:DataFrame) -> list:
     data_mean = data.mean()
 
     # Cotas
-    anomaly_cut_off = data_std * 1.5
+    anomaly_cut_off = data_std * std
     # Inferior
     lower_limit = data_mean - anomaly_cut_off
     # Superior
@@ -133,42 +208,13 @@ def get_outliers(data:DataFrame) -> list:
     return outliers
 
 
-# Diagnóstico de variables
-# Función para observar el comportamiento de ciertas variables
-def diagnostic_plots(dataframe:DataFrame, variable:list):
-
-    dataframe = dataframe[variable]
-    for var in dataframe:
-        plt.style.use('dark_background')
-        fig, axes = plt.subplots(1, 4, figsize=(18, 6))
-        fig.suptitle('Diagnostic Plots', fontsize=18)
-
-        plt.subplot(1, 4, 1)
-        sns.histplot(dataframe[var], bins=20, color='gold')
-        plt.grid(which='major')
-
-        plt.subplot(1, 4, 2)
-        stats.probplot(dataframe[var], dist='norm', plot=plt)
-        plt.grid()
-
-        plt.subplot(1, 4, 3)
-        sns.kdeplot(dataframe[var], shade=True, color='red')
-        plt.grid()
-
-        plt.subplot(1, 4, 4)
-        sns.boxplot(y=dataframe[var], color='floralwhite', linewidth=2)
-
-        plt.xlabel(var)
-        fig.tight_layout()
-
-
 # Revisar la cardinalidad de variables categóricas
 # Función para graficar variables categóricas
-def categoricals_plot(dataframe:DataFrame, variables: list, ylabel: str):
+def categoricals_plot(data:DataFrame, variables: list):
 
     for var in variables:
         plt.style.use('dark_background')
-        temp_dataframe = pd.Series(dataframe[var].value_counts() / len(dataframe))
+        temp_dataframe = pd.Series(data[var].value_counts() / len(data))
 
         # Graficar con los porcentajes
         fig = temp_dataframe.sort_values(ascending=False).plot.bar(color='lavender')
@@ -176,7 +222,7 @@ def categoricals_plot(dataframe:DataFrame, variables: list, ylabel: str):
 
         # Añadir una línea horizontal a 5% para resaltar categorías poco comunes
         fig.axhline(y=0.05, color='#e51a4c')
-        fig.set_ylabel(ylabel)
+        fig.set_ylabel('Porcentajes')
 
         plt.xticks(rotation=25)
         plt.grid()
